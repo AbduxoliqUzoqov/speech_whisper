@@ -70,6 +70,8 @@ class WhisperUzbekManager:
         full_ds = Dataset.from_generator(gen)
         split_ds = full_ds.train_test_split(test_size=0.1)
         
+        # RAM-ni tejash uchun keraksiz obyektni o'chiramiz
+        del full_ds
         gc.collect()
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         return split_ds["train"], split_ds["test"]
@@ -109,6 +111,7 @@ class WhisperUzbekManager:
             fp16=True,
             eval_strategy="steps",
             per_device_eval_batch_size=8,
+            dataloader_num_workers=0, # RAM tejash uchun
             optim="adamw_bnb_8bit",
             predict_with_generate=True,
             generation_max_length=225,
