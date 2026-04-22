@@ -122,6 +122,7 @@ class WhisperUzbekManager:
             load_best_model_at_end=True,
             metric_for_best_model="wer",
             greater_is_better=False,
+            remove_unused_columns=False, # Xatolikni oldini olish uchun
         )
 
         trainer = Seq2SeqTrainer(
