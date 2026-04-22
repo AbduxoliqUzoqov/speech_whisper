@@ -116,7 +116,6 @@ class WhisperUzbekManager:
             gradient_accumulation_steps=2,
             learning_rate=1e-4,
             weight_decay=0.01,
-            label_smoothing_factor=0.1,
             warmup_steps=100,
             max_steps=1000,
             gradient_checkpointing=True,
