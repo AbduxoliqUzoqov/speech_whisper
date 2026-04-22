@@ -41,37 +41,49 @@ class WhisperUzbekManager:
         self.feature_extractor = WhisperFeatureExtractor.from_pretrained(model_id)
         
     def prepare_dataset(self, num_samples=2000, seed=42):
-        """tasodifiy sample-larni olish va qayta ishlash."""
-        print(f"Datasetdan {num_samples} ta tasodifiy sample olinmoqda (Seed: {seed})...")
+        """RAM-ni maksimal darajada tejovchi dataset tayyorlash."""
+        print(f"Datasetdan {num_samples} ta namuna yuklanmoqda (Streaming -> Disk)...")
         raw_dataset = load_dataset(self.dataset_name, split="train", streaming=True)
-        
-        # Tasodifiylikni ta'minlash
         shuffled_dataset = raw_dataset.shuffle(seed=seed, buffer_size=1000)
         dataset_head = shuffled_dataset.take(num_samples)
-        dataset_head = dataset_head.cast_column("audio", Audio(sampling_rate=16000))
         
-        def prepare_function(batch):
-            audio = batch["audio"]
-            batch["input_features"] = self.feature_extractor(audio["array"], sampling_rate=audio["sampling_rate"]).input_features[0]
-            
-            target_text = batch.get("text") or batch.get("sentence") or batch.get("transcript")
-            if target_text:
-                target_text = re.sub(r'[^a-z0-9ʻ’\'‘ ]', ' ', target_text.lower().strip())
-                target_text = re.sub(r'\s+', ' ', target_text).strip()
-            
-            batch["labels"] = self.tokenizer(target_text or " ").input_ids
-            return batch
-
+        # 1. Avval faqat matn va audio yo'llarini diskka keshlaymiz (yengil bosqich)
         def gen():
             for item in dataset_head:
-                yield prepare_function(item)
-
-        from datasets import Dataset
-        full_ds = Dataset.from_generator(gen)
-        split_ds = full_ds.train_test_split(test_size=0.1)
+                yield {
+                    "audio": item["audio"],
+                    "text": item.get("text") or item.get("sentence") or item.get("transcript")
+                }
         
-        # RAM-ni tejash uchun keraksiz obyektni o'chiramiz
-        del full_ds
+        from datasets import Dataset
+        raw_ds = Dataset.from_generator(gen)
+        raw_ds = raw_ds.cast_column("audio", Audio(sampling_rate=16000))
+        
+        # 2. Mel-spektrogrammalarni map orqali hisoblaymiz (Diskka Memory-mapped yozadi)
+        def process_batch(batch):
+            audio_arrays = [x["array"] for x in batch["audio"]]
+            inputs = self.feature_extractor(audio_arrays, sampling_rate=16000).input_features
+            
+            labels = []
+            for t in batch["text"]:
+                t = re.sub(r'[^a-z0-9ʻ’\'‘ ]', ' ', (t or " ").lower().strip())
+                t = re.sub(r'\s+', ' ', t).strip()
+                labels.append(self.tokenizer(t).input_ids)
+            
+            return {"input_features": inputs, "labels": labels}
+
+        print("Og'ir ma'lumotlar qayta ishlanmoqda (Mel-spektrogrammalar)...")
+        processed_ds = raw_ds.map(
+            process_batch, 
+            batched=True, 
+            batch_size=16, # Har bir batchda 16 tadan audio
+            remove_columns=raw_ds.column_names,
+            num_proc=1 # RAM tejash uchun 1 ta protsess
+        )
+        
+        split_ds = processed_ds.train_test_split(test_size=0.1)
+        
+        del raw_ds, processed_ds
         gc.collect()
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         return split_ds["train"], split_ds["test"]
@@ -100,7 +112,7 @@ class WhisperUzbekManager:
 
         training_args = Seq2SeqTrainingArguments(
             output_dir=output_dir,
-            per_device_train_batch_size=8,
+            per_device_train_batch_size=5,
             gradient_accumulation_steps=2,
             learning_rate=1e-4,
             weight_decay=0.01,
