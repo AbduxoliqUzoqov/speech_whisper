@@ -10,15 +10,25 @@ Ushbu loyiha OpenAI **Whisper-Small** modelini o'zbek tili nutqini tanish uchun 
 *   **Robust Text Normalizer**: O'zbek nutqidagi maxsus harflarni (o‘, g‘, sh, ch) to'g'ri qayta ishlash.
 *   **8-bit Optimization**: VRAM-ni tejash uchun `bitsandbytes` orqali 8-bitli optimizatsiya.
 
-## 🛠 O'rnatish
+## 🛠 Colab-da ishga tushirish (To'liq ketma-ketlik)
 
-Colab-da quyidagi buyruqni bajaring:
+### 1. Loyihani birinchi marta yuklab olish (Faqat 1 marta)
+```bash
+!git clone https://github.com/AbduxoliqUzoqov/speech_whisper.git
+%cd speech_whisper
+```
 
+### 2. Loyihani yangilash (Har safar yangi kod chiqqanda)
+```bash
+!git pull origin main
+```
+
+### 3. Kutubxonalarni o'rnatish
 ```bash
 !pip install -U datasets transformers[torch] librosa evaluate jiwer accelerate bitsandbytes ffmpeg-python
 ```
 
-## 📈 Foydalanish (Step-by-Step)
+## 📈 Modelni o'qitish (Incremental Training)
 
 ### 1. Birinchi o'qitish bosqichi
 ```python
