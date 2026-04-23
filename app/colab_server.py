@@ -72,15 +72,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
     
     try:
-        # 2. Xatolik (num_frames) bermasligi uchun audioni toza WAV formatga o'tkazamiz
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", webm_location, "-ar", "16000", "-ac", "1", wav_location],
-            stdout=subprocess.DEVNULL, 
-            stderr=subprocess.DEVNULL
-        )
+        # 2. Librosa yordamida audioni numpy array ga o'g'iramiz (HuggingFace xatosini aylanib o'tish uchun)
+        import librosa
+        audio_array, sr = librosa.load(webm_location, sr=16000)
         
-        # 3. Model orqali tarjima qilish (Pipeline)
-        result = pipe(wav_location, generate_kwargs={"language": "uzbek", "task": "transcribe"})
+        # 3. Model orqali tarjima qilish (Fayl nomini emas, tayyor audioni beramiz)
+        result = pipe(audio_array, generate_kwargs={"language": "uzbek", "task": "transcribe"})
         matn = result["text"]
         
     except Exception as e:
