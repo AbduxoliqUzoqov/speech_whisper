@@ -112,7 +112,7 @@ class WhisperUzbekManager:
         model.gradient_checkpointing_enable()
         return model
 
-    def run_training(self, train_ds, test_ds, model, output_dir="./results"):
+    def run_training(self, train_ds, test_ds, model, output_dir="./results", learning_rate=1e-4):
         data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=self.processor)
         metric = evaluate.load("wer")
 
@@ -129,7 +129,7 @@ class WhisperUzbekManager:
             output_dir=output_dir,
             per_device_train_batch_size=5,
             gradient_accumulation_steps=2,
-            learning_rate=1e-4,
+            learning_rate=learning_rate,
             weight_decay=0.01,
             warmup_steps=100,
             max_steps=1000,
