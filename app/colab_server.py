@@ -34,7 +34,7 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------
-# API ishga tushishidan oldin Modelni (Pipeline) XOTIRAGA BIR MARTA yuklab olamiz
+# API ishga tushishidan oldin Modelni XOTIRAGA BIR MARTA yuklab olamiz
 # ---------------------------------------------------------
 model_path = "./whisper-uz-v1" 
 if not os.path.exists(model_path):
@@ -42,16 +42,18 @@ if not os.path.exists(model_path):
     model_path = "openai/whisper-small"
 
 print(f"Model ({model_path}) xotiraga yuklanmoqda, iltimos kuting...")
-from transformers import pipeline
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+import torch
 
 try:
-    device = 0 if torch.cuda.is_available() else -1
-    # Modelni global o'zgaruvchi sifatida bir marta yuklaymiz (har safar yuklanmasligi uchun)
-    pipe = pipeline("automatic-speech-recognition", model=model_path, device=device)
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    processor = WhisperProcessor.from_pretrained(model_path, language="Uzbek", task="transcribe")
+    model = WhisperForConditionalGeneration.from_pretrained(model_path).to(device)
     print("Model muvaffaqiyatli yuklandi! 🚀")
 except Exception as e:
     print(f"Model yuklashda xato: {e}")
-    pipe = None
+    processor = None
+    model = None
 
 @app.get("/")
 def home():
@@ -61,27 +63,31 @@ def home():
 async def transcribe_audio(file: UploadFile = File(...)):
     print(f"Yangi audio qabul qilindi: {file.filename}")
     
-    if pipe is None:
+    if model is None or processor is None:
         return {"fayl_nomi": file.filename, "matn": "Xatolik: Model xotiraga yuklanmagan!"}
 
     # 1. Kelgan webm/audio faylni vaqtincha saqlash
     webm_location = f"temp_{file.filename}"
-    wav_location = f"temp_{file.filename}.wav"
     
     with open(webm_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
     try:
-        # 2. Librosa yordamida audioni numpy array ga o'g'iramiz (HuggingFace xatosini aylanib o'tish uchun)
+        # 2. Librosa yordamida audioni numpy array ga o'g'iramiz
         import librosa
         audio_array, sr = librosa.load(webm_location, sr=16000)
         
-        # 3. Model orqali tarjima qilish (Fayl nomini emas, tayyor audioni beramiz)
-        result = pipe(audio_array, generate_kwargs={"language": "uzbek", "task": "transcribe"})
-        matn = result["text"]
+        # 3. Model orqali sof tensorlar bilan tarjima qilish (Pipeline xatosini aylanib o'tish)
+        input_features = processor(audio_array, sampling_rate=16000, return_tensors="pt").input_features.to(device)
+        forced_decoder_ids = processor.get_decoder_prompt_ids(language="uzbek", task="transcribe")
+        
+        predicted_ids = model.generate(input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=225)
+        matn = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
         
     except Exception as e:
         print(f"Xatolik yuz berdi: {e}")
+        import traceback
+        traceback.print_exc()
         matn = f"Xatolik yuz berdi: {e}"
         
     finally:
