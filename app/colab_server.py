@@ -2,12 +2,20 @@
 # Bu fayldagi kodni to'lig'icha ko'chirib, Google Colab'dagi bitta katakka (cell) yozib ishlating!
 
 import os
+import sys
 import shutil
 import subprocess
 import nest_asyncio
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+
+# Asosiy papkadagi train_whisper faylini chaqirish uchun yo'lni qo'shamiz
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+try:
+    from train_whisper import WhisperUzbekManager
+except ImportError:
+    print("train_whisper.py topilmadi! Iltimos, serverni asosiy papkadan ishga tushiring.")
 
 # 1. Kutubxonalarni avtomatik o'rnatish
 print("Kutubxonalar o'rnatilmoqda...")
@@ -22,14 +30,22 @@ if not os.path.exists("cloudflared"):
 # 3. FastAPI ilovasini yaratish va CORS (Ruxsat) berish
 app = FastAPI(title="Whisper Uzbek Real-time API")
 
-# Veb-saytimiz (frontend) API ga ulanishi uchun CORS ga ruxsat beramiz
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Barcha saytlardan so'rovlarni qabul qiladi
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API ishga tushishidan oldin Modelni (Manager) xotiraga yuklab olamiz
+model_path = "./whisper-uz-v1"
+print(f"Model ({model_path}) xotiraga yuklanmoqda, iltimos kuting...")
+try:
+    manager = WhisperUzbekManager(model_id=model_path)
+except Exception as e:
+    print(f"Model yuklashda xato: {e}")
+    manager = None
 
 @app.get("/")
 def home():
@@ -39,18 +55,15 @@ def home():
 async def transcribe_audio(file: UploadFile = File(...)):
     print(f"Yangi audio qabul qilindi: {file.filename}")
     
-    # Kelgan audioni Colab ga saqlash
+    if manager is None:
+        return {"fayl_nomi": file.filename, "matn": "Xatolik: Model xotiraga yuklanmagan!"}
+
     file_location = f"temp_{file.filename}"
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
     try:
         # MANAGER ORQALI TARJIMA QILISH
-        # (manager va model oldin yuklangan bo'lishi kerak)
-        
-        # O'z modelingiz yo'lini yozing:
-        model_path = "./whisper-uz-v1" 
-        
         matn = manager.quick_test(model_path=model_path, audio_input=file_location)
         
     except Exception as e:
