@@ -12,14 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Asosiy papkadagi train_whisper faylini chaqirish uchun yo'lni qo'shamiz
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.getcwd())
+
+# 1. Kutubxonalarni avtomatik o'rnatish (Hamma kerakli kutubxonalar)
+print("Kutubxonalar o'rnatilmoqda...")
+os.system("pip install fastapi uvicorn python-multipart nest-asyncio transformers datasets evaluate jiwer accelerate bitsandbytes librosa")
+
 try:
     from train_whisper import WhisperUzbekManager
-except ImportError:
-    print("train_whisper.py topilmadi! Iltimos, serverni asosiy papkadan ishga tushiring.")
-
-# 1. Kutubxonalarni avtomatik o'rnatish
-print("Kutubxonalar o'rnatilmoqda...")
-os.system("pip install fastapi uvicorn python-multipart nest-asyncio")
+except Exception as e:
+    print(f"\n❌ XATOLIK: train_whisper.py yuklanmadi. Sababi: {e}\n")
 
 # 2. Cloudflared binar faylini yuklab olish va o'rnatish
 if not os.path.exists("cloudflared"):
