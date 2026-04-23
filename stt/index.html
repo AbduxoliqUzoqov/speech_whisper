@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper STT - Uzluksiz Rejim</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #05070a;
+            --surface: #0f1218;
+            --primary: #4f46e5;
+            --primary-glow: rgba(79, 70, 229, 0.4);
+            --secondary: #ec4899;
+            --text: #ffffff;
+            --text-dim: #94a3b8;
+            --danger: #ef4444;
+            --border: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem;
+            overflow-x: hidden;
+        }
+
+        /* Fon animatsiyasi */
+        .bg-glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            z-index: -1;
+            filter: blur(50px);
+            opacity: 0.5;
+        }
+
+        .main-card {
+            width: 100%;
+            max-width: 800px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #818cf8, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .config-section {
+            margin-bottom: 2rem;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-dim);
+            margin-bottom: 0.5rem;
+        }
+
+        input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .record-trigger {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+            position: relative;
+        }
+
+        .record-trigger::before {
+            content: '';
+            position: absolute;
+            width: 110%;
+            height: 110%;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .record-trigger:hover {
+            transform: scale(1.05);
+        }
+
+        .record-trigger.active {
+            background: var(--danger);
+            animation: pulse 1.5s infinite;
+        }
+
+        .record-trigger.active::before {
+            opacity: 1;
+            animation: ripple 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            display: inline-block;
+            margin-right: 0.5rem;
+            box-shadow: 0 0 10px #4ade80;
+        }
+
+        .status-dot.idle { background: #94a3b8; box-shadow: none; }
+        .status-dot.busy { background: #facc15; box-shadow: 0 0 10px #facc15; }
+
+        .transcript-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .box {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            min-height: 150px;
+        }
+
+        .box-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .content {
+            font-size: 1.125rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .current-chunk {
+            color: #818cf8;
+            font-style: italic;
+        }
+
+        .history {
+            color: var(--text);
+        }
+
+        .visualizer {
+            width: 100%;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+
+        .bar {
+            width: 3px;
+            height: 10px;
+            background: var(--primary);
+            border-radius: 2px;
+            transition: height 0.1s;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow"></div>
+
+    <div class="main-card">
+        <header>
+            <div class="badge">Uzluksiz Tarjima Rejimi</div>
+            <h1>Whisper Live</h1>
+        </header>
+
+        <div class="config-section">
+            <div class="input-group">
+                <label>Cloudflare API URL</label>
+                <input type="text" id="apiUrl" placeholder="https://xxxx.trycloudflare.com" autocomplete="off">
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="record-trigger" id="recordBtn">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" x2="12" y1="19" y2="22"></line>
+                </svg>
+            </button>
+            <div id="statusLabel">
+                <span class="status-dot idle" id="statusDot"></span>
+                <span id="statusMsg">Mikrofonni bosing</span>
+            </div>
+            <div class="visualizer" id="visualizer">
+                <!-- Barlar JS orqali qo'shiladi -->
+            </div>
+        </div>
+
+        <div class="transcript-container">
+            <div class="box">
+                <div class="box-label">
+                    <span>Matn tarixi</span>
+                    <span id="wordCount">0 so'z</span>
+                </div>
+                <div class="content">
+                    <span class="history" id="fullTranscript"></span>
+                    <span class="current-chunk" id="currentChunk"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('recordBtn');
+        const apiUrlInput = document.getElementById('apiUrl');
+        const fullTranscript = document.getElementById('fullTranscript');
+        const currentChunk = document.getElementById('currentChunk');
+        const statusMsg = document.getElementById('statusMsg');
+        const statusDot = document.getElementById('statusDot');
+        const wordCount = document.getElementById('wordCount');
+        const visualizer = document.getElementById('visualizer');
+
+        // Visualizer barlarini yaratish
+        for(let i=0; i<30; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            visualizer.appendChild(bar);
+        }
+        const bars = document.querySelectorAll('.bar');
+
+        let isRecording = false;
+        let mediaRecorder;
+        let chunkInterval;
+        const CHUNK_DURATION = 4000; // 4 soniya
+
+        recordBtn.addEventListener('click', toggleRecording);
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                const url = apiUrlInput.value.trim();
+                if (!url) {
+                    alert("Avval API URL manzilini kiriting!");
+                    return;
+                }
+                startContinuousRecording();
+            } else {
+                stopContinuousRecording();
+            }
+        }
+
+        async function startContinuousRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isRecording = true;
+                recordBtn.classList.add('active');
+                statusDot.className = 'status-dot';
+                statusMsg.textContent = "Sizni eshityapman...";
+
+                // Vizualizatsiya
+                const audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(stream);
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                function draw() {
+                    if (!isRecording) return;
+                    requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+                    bars.forEach((bar, i) => {
+                        const val = dataArray[i % dataArray.length];
+                        bar.style.height = (val / 5) + 5 + 'px';
+                    });
+                }
+                draw();
+
+                // Uzluksiz sikl
+                captureAndSend();
+                chunkInterval = setInterval(captureAndSend, CHUNK_DURATION);
+
+            } catch (err) {
+                console.error("Xato:", err);
+                alert("Mikrofonga ruxsat berilmadi.");
+            }
+        }
+
+        function stopContinuousRecording() {
+            isRecording = false;
+            recordBtn.classList.remove('active');
+            clearInterval(chunkInterval);
+            statusDot.className = 'status-dot idle';
+            statusMsg.textContent = "To'xtatildi";
+            bars.forEach(bar => bar.style.height = '10px');
+            
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        async function captureAndSend() {
+            if (!isRecording) return;
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            const chunks = [];
+
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = async () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' });
+                sendToWhisper(blob);
+                stream.getTracks().forEach(t => t.stop());
+            };
+
+            recorder.start();
+            setTimeout(() => {
+                if (recorder.state === 'recording') recorder.stop();
+            }, CHUNK_DURATION - 100);
+        }
+
+        async function sendToWhisper(blob) {
+            let url = apiUrlInput.value.trim().replace(/\/$/, "");
+            statusDot.className = 'status-dot busy';
+            currentChunk.textContent = "...";
+
+            const formData = new FormData();
+            formData.append("file", blob, "chunk.webm");
+
+            try {
+                const response = await fetch(`${url}/transcribe/`, {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.matn && data.matn.trim()) {
+                    // Agar matn bo'lsa qo'shish
+                    const newText = data.matn.trim();
+                    fullTranscript.textContent += (fullTranscript.textContent ? " " : "") + newText;
+                    currentChunk.textContent = "";
+                    
+                    // So'zlar sonini yangilash
+                    const words = fullTranscript.textContent.split(/\s+/).filter(w => w.length > 0);
+                    wordCount.textContent = words.length + " so'z";
+                }
+            } catch (err) {
+                console.error("API Xatosi:", err);
+            } finally {
+                if (isRecording) {
+                    statusDot.className = 'status-dot';
+                    currentChunk.textContent = "";
+                }
+            }
+        }
+    </script>
+</body>
+</html>
