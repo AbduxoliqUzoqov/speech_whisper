@@ -93,7 +93,6 @@ async def transcribe_audio(file: UploadFile = File(...)):
     finally:
         # 4. Vaqtinchalik audio fayllarni tozalash
         if os.path.exists(webm_location): os.remove(webm_location)
-        if os.path.exists(wav_location): os.remove(wav_location)
             
     return {"fayl_nomi": file.filename, "matn": matn}
 
