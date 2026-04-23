@@ -2,6 +2,7 @@
 # Bu fayldagi kodni to'lig'icha ko'chirib, Google Colab'dagi bitta katakka (cell) yozib ishlating!
 
 import os
+import os
 import sys
 import shutil
 import subprocess
@@ -9,19 +10,11 @@ import nest_asyncio
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+import torch
 
-# Asosiy papkadagi train_whisper faylini chaqirish uchun yo'lni qo'shamiz
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.append(os.getcwd())
-
-# 1. Kutubxonalarni avtomatik o'rnatish (Hamma kerakli kutubxonalar)
+# 1. Kutubxonalarni avtomatik o'rnatish
 print("Kutubxonalar o'rnatilmoqda...")
-os.system("pip install fastapi uvicorn python-multipart nest-asyncio transformers datasets evaluate jiwer accelerate bitsandbytes librosa")
-
-try:
-    from train_whisper import WhisperUzbekManager
-except Exception as e:
-    print(f"\n❌ XATOLIK: train_whisper.py yuklanmadi. Sababi: {e}\n")
+os.system("pip install fastapi uvicorn python-multipart nest-asyncio transformers datasets evaluate jiwer accelerate bitsandbytes librosa ffmpeg-python")
 
 # 2. Cloudflared binar faylini yuklab olish va o'rnatish
 if not os.path.exists("cloudflared"):
@@ -40,14 +33,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API ishga tushishidan oldin Modelni (Manager) xotiraga yuklab olamiz
-model_path = "./whisper-uz-v1"
+# ---------------------------------------------------------
+# API ishga tushishidan oldin Modelni (Pipeline) XOTIRAGA BIR MARTA yuklab olamiz
+# ---------------------------------------------------------
+model_path = "./whisper-uz-v1" 
+if not os.path.exists(model_path):
+    print(f"DIQQAT: {model_path} topilmadi! Standart 'openai/whisper-small' yuklanmoqda...")
+    model_path = "openai/whisper-small"
+
 print(f"Model ({model_path}) xotiraga yuklanmoqda, iltimos kuting...")
+from transformers import pipeline
+
 try:
-    manager = WhisperUzbekManager(model_id=model_path)
+    device = 0 if torch.cuda.is_available() else -1
+    # Modelni global o'zgaruvchi sifatida bir marta yuklaymiz (har safar yuklanmasligi uchun)
+    pipe = pipeline("automatic-speech-recognition", model=model_path, device=device)
+    print("Model muvaffaqiyatli yuklandi! 🚀")
 except Exception as e:
     print(f"Model yuklashda xato: {e}")
-    manager = None
+    pipe = None
 
 @app.get("/")
 def home():
@@ -57,28 +61,38 @@ def home():
 async def transcribe_audio(file: UploadFile = File(...)):
     print(f"Yangi audio qabul qilindi: {file.filename}")
     
-    if manager is None:
+    if pipe is None:
         return {"fayl_nomi": file.filename, "matn": "Xatolik: Model xotiraga yuklanmagan!"}
 
-    file_location = f"temp_{file.filename}"
-    with open(file_location, "wb") as buffer:
+    # 1. Kelgan webm/audio faylni vaqtincha saqlash
+    webm_location = f"temp_{file.filename}"
+    wav_location = f"temp_{file.filename}.wav"
+    
+    with open(webm_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
     try:
-        # MANAGER ORQALI TARJIMA QILISH
-        matn = manager.quick_test(model_path=model_path, audio_input=file_location)
+        # 2. Xatolik (num_frames) bermasligi uchun audioni toza WAV formatga o'tkazamiz
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", webm_location, "-ar", "16000", "-ac", "1", wav_location],
+            stdout=subprocess.DEVNULL, 
+            stderr=subprocess.DEVNULL
+        )
+        
+        # 3. Model orqali tarjima qilish (Pipeline)
+        result = pipe(wav_location, generate_kwargs={"language": "uzbek", "task": "transcribe"})
+        matn = result["text"]
         
     except Exception as e:
         print(f"Xatolik yuz berdi: {e}")
         matn = f"Xatolik yuz berdi: {e}"
         
     finally:
-        # Vaqtinchalik audio faylni o'chirib yuborish
-        if os.path.exists(file_location):
-            os.remove(file_location)
+        # 4. Vaqtinchalik audio fayllarni tozalash
+        if os.path.exists(webm_location): os.remove(webm_location)
+        if os.path.exists(wav_location): os.remove(wav_location)
             
     return {"fayl_nomi": file.filename, "matn": matn}
-
 
 # 4. Cloudflare Tunnel'ni orqa fonda ishga tushirish funksiyasi
 def start_cloudflared(port):
