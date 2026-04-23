@@ -81,7 +81,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         input_features = processor(audio_array, sampling_rate=16000, return_tensors="pt").input_features.to(device)
         forced_decoder_ids = processor.get_decoder_prompt_ids(language="uzbek", task="transcribe")
         
-        predicted_ids = model.generate(input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=225)
+        predicted_ids = model.generate(input_features, forced_decoder_ids=forced_decoder_ids, max_new_tokens=225, max_length=None)
         matn = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
         
     except Exception as e:
