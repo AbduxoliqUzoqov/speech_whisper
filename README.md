@@ -1,4 +1,5 @@
 # 🇺🇿 Whisper Uzbek Speech-to-Text Fine-Tuning
+[![Google Colab](https://img.shields.io/badge/Open%20in-Colab-orange?logo=googlecolab)](https://colab.research.google.com)
 
 Ushbu loyiha OpenAI **Whisper-Small** modelini o'zbek tili nutqini tanish uchun maxsus fine-tune qilishga mo'ljallangan. Loyiha Google Colab kabi resurslari cheklangan muhitlarda samarali ishlash uchun **Incremental Learning** (bosqichma-bosqich o'qitish) tizimi bilan jihozlangan.
 
